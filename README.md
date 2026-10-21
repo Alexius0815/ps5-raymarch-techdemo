@@ -1,5 +1,7 @@
 # Raymarch Tech Demo
 
+![Raymarch Tech Demo running on macOS with AnyPS5](docs/demo.gif)
+
 A small native PS5 homebrew demo, written from scratch as a free test title
 for [AnyPS5](https://github.com/boykopovar/AnyPS5) and its community macOS
 port. It needs no commercial game data and exercises CPU threads, VideoOut,
@@ -15,6 +17,15 @@ AudioOut and DualSense input.
   SID Hearts.
 - An overlay that reports where the demo runs (for example AnyPS5 on macOS
   under Rosetta 2, or real PS5 hardware), the build version and live stats.
+
+**Download:** the [latest release](https://github.com/Alexius0815/ps5-raymarch-techdemo/releases/latest) has a ZIP with the clean PS5 executable, ready for the
+[AnyPS5 online relinker](https://boykopovar.github.io/AnyPS5/).
+
+| Neon tunnel | Metal blobs |
+| --- | --- |
+| ![Neon tunnel scene](docs/tunnel.jpg) | ![Metal blobs scene](docs/blobs.jpg) |
+
+Captured on an Apple M4 Mac with AnyPS5 (Rosetta 2, MoltenVK).
 
 ## Controls (DualSense)
 
