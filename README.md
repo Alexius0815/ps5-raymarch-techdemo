@@ -82,6 +82,13 @@ Click the window before using the controller. Output goes to `run/play.log`.
 Tested on an Apple M4 Mac (Rosetta 2, MoltenVK) with the AnyPS5 macOS
 working stack. It has not been tested on a physical PS5.
 
+## Smoke test
+
+`eboot --smoke-test` renders 180 frames through both scenes without
+waiting for input, prints `[showcase-smoke] complete frames=180 scenes=2`
+and exits with status 0. Any other outcome means the run did not
+complete. It suits scripted pass/fail checks of a runtime build.
+
 ## License
 
 GPL-3.0-or-later, see `LICENSE`. The startup code in `native/`, the
