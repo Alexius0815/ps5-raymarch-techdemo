@@ -7,9 +7,10 @@ for [AnyPS5](https://github.com/boykopovar/AnyPS5) and its community macOS
 port. It needs no commercial game data and exercises CPU threads, VideoOut,
 AudioOut and DualSense input.
 
-- Two scenes rendered on the CPU by worker threads: reflective metal blobs
-  on a checkerboard floor, and a neon tunnel with a steerable spaceship,
-  comets and lasers.
+- Three scenes rendered by CPU worker threads. Metal Blobs has reflective
+  shapes on a checkerboard floor. Neon Tunnel has a steerable spaceship,
+  comets and lasers. Prism Observatory has a rotating crystal, three glowing
+  rings and orbiting satellites against a star field.
 - Dynamic internal resolution with optional 4x antialiasing, upscaled to
   1920 x 1080.
 - Six original synthesized chiptune tracks in old-school cracktro style:
@@ -31,12 +32,12 @@ Captured on an Apple M4 Mac with AnyPS5 (Rosetta 2, MoltenVK).
 
 | Input | Action |
 | --- | --- |
-| Right stick | Orbit the camera (blobs) |
-| Left stick | Zoom (blobs) / steer the ship (tunnel) |
+| Right stick | Orbit the camera (blobs and observatory) / look around (tunnel) |
+| Left stick | Zoom (blobs and observatory) / steer the ship (tunnel) |
 | R2 | Fire lasers (tunnel) |
 | Options | Motion steering on/off |
 | Touchpad | Rumble on/off |
-| Circle | Switch scene (also every 30 s while idle) |
+| Circle | Cycle through the three scenes (also every 30 s while idle) |
 | Cross | Colour mood |
 | Square | 4x antialiasing |
 | Triangle | Dynamic resolution |
@@ -77,15 +78,17 @@ MOLTENVK_ICD=/path/to/MoltenVK_icd.json \
 ./run_macos.sh
 ```
 
-Click the window before using the controller. Output goes to `run/play.log`.
+Click the window before using the controller. Output streams to the terminal
+and is saved in `run/play.log`. Pass `--observatory` to `run_macos.sh` to start
+in the Prism Observatory.
 
 Tested on an Apple M4 Mac (Rosetta 2, MoltenVK) with the AnyPS5 macOS
 working stack. It has not been tested on a physical PS5.
 
 ## Smoke test
 
-`eboot --smoke-test` renders 180 frames through both scenes without
-waiting for input, prints `[showcase-smoke] complete frames=180 scenes=2`
+`eboot --smoke-test` renders 180 frames through all three scenes without
+waiting for input, prints `[showcase-smoke] complete frames=180 scenes=3`
 and exits with status 0. Any other outcome means the run did not
 complete. It suits scripted pass/fail checks of a runtime build.
 

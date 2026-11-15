@@ -35,7 +35,7 @@ readonly MODULE_SDK="0x02000009"
 readonly COMPANION_SDK="0x08050001"
 # Build identity shown by the demo: a version and a content hash of the
 # source, so identical sources give identical builds (no timestamps).
-readonly DEMO_VERSION="1.3"
+readonly DEMO_VERSION="1.4"
 DEMO_SOURCE_HASH="$(shasum -a 256 "${ROOT_DIR}/src/showcase.cpp" | cut -c1-8)"
 readonly DEMO_SOURCE_HASH
 readonly DEMO_DEFINES=(

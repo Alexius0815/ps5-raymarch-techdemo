@@ -169,12 +169,29 @@ constexpr Mood kMoods[] = {
 };
 constexpr int kMoodCount = sizeof(kMoods) / sizeof(kMoods[0]);
 
+enum Scene
+{
+    kBlobs,
+    kTunnel,
+    kObservatory,
+    kSceneCount,
+};
+
+constexpr float kOrbitRadii[] = {2.05f, 2.55f, 3.10f};
+constexpr const char *kSceneNames[] = {"METAL BLOBS", "NEON TUNNEL", "PRISM OBSERVATORY"};
+static_assert(sizeof(kSceneNames) / sizeof(kSceneNames[0]) == kSceneCount);
+
+Scene NextScene(Scene scene)
+{
+    return static_cast<Scene>((scene + 1) % kSceneCount);
+}
+
 struct FrameState
 {
     std::uint32_t *pixels;    // 1920x1080 display buffer
     std::uint32_t *internal;  // width x height render target
     bool antialias;
-    int scene;   // 0 = blobs, 1 = neon tunnel
+    Scene scene;
     float time;  // seconds since start
     float beat;  // kick envelope 0..1 from the music thread
     V3 ship;     // spaceship centre in tunnel space
@@ -187,6 +204,9 @@ struct FrameState
     V3 eye, forward, right, up;
     V3 blobs[5];
     V3 sun;
+    V3 prism_axes[3];
+    V3 prism_faces[8];
+    V3 satellites[3];
     const Mood *mood;
     int panel_count;      // dimmed overlay panels, applied while upscaling
     int panels[4][4];     // x0, y0, x1, y1 in display pixels
@@ -539,9 +559,102 @@ P3 TraceTunnel4(P3 dir)
     return color + Splat(m.sun_color) * (engines * S4(1.2f));
 }
 
+P3 TraceObservatory4(P3 eye, P3 dir)
+{
+    const FrameState &s = g_state;
+    const Mood &m = *s.mood;
+    const F4 nebula = S4(0.5f) + S4(0.5f) * Sin4(dir.x * S4(8.0f) + dir.y * S4(4.0f));
+    const F4 band = S4(1.0f) - Clamp4(Abs4(dir.y + dir.x * S4(0.22f)) * S4(3.5f), 0.0f, 1.0f);
+    P3 color = Splat({0.004f, 0.007f, 0.022f}) +
+               Splat(m.sky_horizon) * (nebula * band * band * S4(0.07f));
+
+    // Two staggered grids provide stable stars as the camera orbits.
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        const F4 scale = S4(layer == 0 ? 72.0f : 145.0f);
+        const F4 x = dir.x * scale + S4(0.37f * layer);
+        const F4 y = dir.y * scale + S4(0.71f * layer);
+        const F4 seed = Fract4(Sin4(Floor4(x) * S4(1.31f) + Floor4(y) * S4(4.17f)) * S4(437.59f));
+        const F4 dx = Fract4(x) - S4(0.5f);
+        const F4 dy = Fract4(y) - S4(0.5f);
+        const F4 point = Clamp4(S4(1.0f) - (dx * dx + dy * dy) * S4(42.0f), 0.0f, 1.0f);
+        const F4 spark = Sel4(seed > S4(0.82f), point * S4(layer == 0 ? 1.0f : 0.42f), S4(0.0f));
+        color = color + Mix4(Splat({0.45f, 0.68f, 1.0f}), Splat({1.0f, 0.79f, 0.54f}), seed) * spark;
+    }
+
+    // Clip the ray against the eight faces of a rotating octahedron.
+    const P3 offset = eye - Splat({0.0f, 1.0f, 0.0f});
+    F4 entry = S4(0.0f);
+    F4 exit = S4(1000.0f);
+    P3 normal = Splat({});
+    for (int i = 0; i < 8; ++i)
+    {
+        const P3 face = Splat(s.prism_faces[i]);
+        const F4 speed = Dot4(dir, face);
+        const I4 approaching = speed < S4(0.0f);
+        const F4 safe_speed = Sel4(approaching, Min4(speed, S4(-1e-5f)), Max4(speed, S4(1e-5f)));
+        const F4 distance = (S4(1.65f) - Dot4(offset, face)) / safe_speed;
+        const I4 nearer = approaching & (distance > entry);
+        entry = Sel4(nearer, distance, entry);
+        exit = Sel4(approaching, exit, Min4(exit, distance));
+        normal = Sel3(nearer, face, normal);
+    }
+    const I4 hit = (entry > S4(0.0f)) & (exit >= entry);
+    if (Any4(hit))
+    {
+        const P3 point = offset + dir * entry;
+        const F4 local_x = Abs4(Dot4(point, Splat(s.prism_axes[0])));
+        const F4 local_y = Abs4(Dot4(point, Splat(s.prism_axes[1])));
+        const F4 local_z = Abs4(Dot4(point, Splat(s.prism_axes[2])));
+        const F4 edge = S4(1.0f) - Clamp4(Min4(local_x, Min4(local_y, local_z)) * S4(28.0f), 0.0f, 1.0f);
+        const P3 unit_normal = normal * S4(0.57735027f);
+        const F4 light = Max4(Dot4(unit_normal, Splat(s.sun)), S4(0.0f));
+        const F4 facing = Clamp4(-Dot4(unit_normal, dir), 0.0f, 1.0f);
+        const F4 stripe = S4(0.5f) + S4(0.5f) * Sin4(local_y * S4(24.0f) - S4(s.time * 4.0f));
+        const P3 glass = Mix4(Splat({0.04f, 0.18f, 0.66f}), Splat(m.metal), light) *
+                         (S4(0.22f) + facing * S4(0.28f) + stripe * S4(0.16f));
+        color = Sel3(hit, glass + Splat(m.sun_color) * (edge * S4(0.65f + 0.35f * s.beat)), color);
+    }
+
+    // Intersect the equatorial plane; the near side of a ring can pass in
+    // front of the prism, while the prism hides its far side.
+    const F4 distance = (S4(1.0f) - eye.y) / Min4(dir.y, S4(-1e-5f));
+    const I4 ring_visible = (dir.y < S4(-1e-5f)) & ((~hit) | (distance < entry));
+    if (Any4(ring_visible))
+    {
+        const P3 point = eye + dir * distance;
+        const F4 radius = Sqrt4(point.x * point.x + point.z * point.z);
+        const F4 nearest = Min4(Abs4(radius - S4(kOrbitRadii[0])),
+                              Min4(Abs4(radius - S4(kOrbitRadii[1])), Abs4(radius - S4(kOrbitRadii[2]))));
+        const F4 glow = S4(0.0018f) / (nearest * nearest + S4(0.0018f));
+        const F4 spokes = S4(0.65f) + S4(0.35f) * Sin4(point.x * S4(10.0f) + point.z * S4(8.0f));
+        const P3 ring_color = Mix4(Splat({0.12f, 0.75f, 1.0f}), Splat(m.sun_color), spokes);
+        color = color + ring_color * Sel4(ring_visible, glow * glow * S4(0.8f), S4(0.0f));
+    }
+
+    for (const V3 &satellite : s.satellites)
+    {
+        const P3 to_satellite = Splat(satellite) - eye;
+        const F4 along = Dot4(dir, to_satellite);
+        const F4 miss = Max4(Dot4(to_satellite, to_satellite) - along * along, S4(0.0f));
+        const F4 glow = S4(0.012f) / (miss + S4(0.012f));
+        const I4 visible = (along > S4(0.0f)) & ((~hit) | (along < entry));
+        color = color + Splat({0.55f, 0.85f, 1.0f}) * Sel4(visible, glow * glow * S4(1.8f), S4(0.0f));
+    }
+    return color;
+}
+
 inline P3 TraceScene4(P3 eye, P3 dir)
 {
-    return g_state.scene == 1 ? TraceTunnel4(dir) : Trace4(eye, dir);
+    switch (g_state.scene)
+    {
+    case kTunnel:
+        return TraceTunnel4(dir);
+    case kObservatory:
+        return TraceObservatory4(eye, dir);
+    default:
+        return Trace4(eye, dir);
+    }
 }
 
 // Rotated-grid sub-pixel offsets for 4x antialiasing.
@@ -1166,7 +1279,7 @@ struct Controls
     bool antialias = false;
     float width = 480.0f;  // dynamic internal width
     int mood = 0;
-    int scene = 0;
+    Scene scene = kBlobs;
     float scene_time = 0.0f;
     float ship_x = 0.0f;  // spaceship offset from the tunnel axis
     float ship_y = -0.2f;
@@ -1219,7 +1332,7 @@ void UpdateControls(Controls *c, const PadState &pad, float dt)
         c->rumble = !c->rumble;
     if ((pressed & kButtonCircle) != 0)
     {
-        c->scene ^= 1;
+        c->scene = NextScene(c->scene);
         c->scene_time = 0.0f;
     }
     c->yaw += pad.right_x * 1.8f * dt;
@@ -1227,7 +1340,7 @@ void UpdateControls(Controls *c, const PadState &pad, float dt)
     if (pad.buttons != 0 || pad.left_x != 0.0f || pad.left_y != 0.0f ||
         pad.right_x != 0.0f || pad.right_y != 0.0f)
         c->scene_time = 0.0f;  // no automatic scene change while playing
-    if (c->scene == 1)
+    if (c->scene == kTunnel)
     {
         // Steer the ship; keep it well inside the tunnel wall.
         c->ship_x += pad.left_x * 1.4f * dt;
@@ -1293,7 +1406,7 @@ void UpdateGame(Controls *c, float time, float dt, std::int32_t pad)
         bolt.z += 30.0f * dt;
         if (bolt.z > 40.0f)
             bolt.z = 0.0f;
-        for (int i = 0; i < 4 && bolt.z > 0.0f && c->scene == 1; ++i)
+        for (int i = 0; i < 4 && bolt.z > 0.0f && c->scene == kTunnel; ++i)
         {
             int cycle = 0;
             const V3 head = CometPoint(i, 0, time, &cycle);
@@ -1345,7 +1458,7 @@ void SetupFrame(const Controls &c, float time, std::uint32_t *pixels)
     s.eye = target + V3{Cos(yaw) * Cos(c.pitch), Sin(c.pitch), Sin(yaw) * Cos(c.pitch)} *
                          c.distance;
     s.forward = Normalize(target - s.eye);
-    if (c.scene == 1)
+    if (c.scene == kTunnel)
     {
         // Tunnel: camera on the axis, gently swaying forward direction.
         s.eye = V3{0.0f, 0.0f, 0.0f};
@@ -1373,6 +1486,30 @@ void SetupFrame(const Controls &c, float time, std::uint32_t *pixels)
     s.right = Normalize(Cross(s.forward, V3{0.0f, 1.0f, 0.0f}));
     s.up = Cross(s.right, s.forward);
     s.sun = Normalize(V3{0.6f, 0.55f, -0.45f});
+    if (c.scene == kObservatory)
+    {
+        const float spin = time * 0.65f;
+        const float tilt = 0.28f + 0.12f * Sin(time * 0.7f);
+        const float cos_spin = Cos(spin);
+        const float sin_spin = Sin(spin);
+        const float cos_tilt = Cos(tilt);
+        const float sin_tilt = Sin(tilt);
+        s.prism_axes[0] = {cos_spin, 0.0f, sin_spin};
+        s.prism_axes[1] = {-sin_spin * sin_tilt, cos_tilt, cos_spin * sin_tilt};
+        s.prism_axes[2] = {-sin_spin * cos_tilt, -sin_tilt, cos_spin * cos_tilt};
+        for (int i = 0; i < 8; ++i)
+        {
+            s.prism_faces[i] = s.prism_axes[0] * ((i & 1) != 0 ? 1.0f : -1.0f) +
+                               s.prism_axes[1] * ((i & 2) != 0 ? 1.0f : -1.0f) +
+                               s.prism_axes[2] * ((i & 4) != 0 ? 1.0f : -1.0f);
+        }
+        for (int i = 0; i < 3; ++i)
+        {
+            const float angle = time * (1.1f - 0.25f * i) + 2.0f * i;
+            s.satellites[i] = {Cos(angle) * kOrbitRadii[i], 1.0f, Sin(angle) * kOrbitRadii[i]};
+        }
+        return;
+    }
     s.blobs[0] = {0.0f, 1.15f + 0.25f * Sin(time * 1.3f), 0.0f};
     for (int i = 1; i < 5; ++i)
     {
@@ -1609,7 +1746,7 @@ OverlayText BuildOverlayText(float fps, float render_ms)
 {
     OverlayText t{};
     char *out = AppendText(t.title, "RAYMARCH TECH DEMO - ");
-    out = AppendText(out, g_state.scene == 1 ? "NEON TUNNEL" : "METAL BLOBS");
+    out = AppendText(out, kSceneNames[g_state.scene]);
     *out = '\0';
     out = AppendNumber(t.stats[0], fps, true);
     out = AppendText(out, " FPS");
@@ -1624,7 +1761,7 @@ OverlayText BuildOverlayText(float fps, float render_ms)
     out = AppendText(t.stats[2], g_dynamic ? "AUTO-RES" : "FIXED RES");
     out = AppendText(out, g_state.antialias ? "  AA 4X  " : "  ");
     out = AppendText(out, g_state.mood->name);
-    if (g_state.scene == 1)
+    if (g_state.scene == kTunnel)
     {
         out = AppendText(out, "  HITS ");
         out = AppendNumber(out, static_cast<float>(g_hits), false);
@@ -1638,7 +1775,7 @@ OverlayText BuildOverlayText(float fps, float render_ms)
     out = AppendText(out, "  ");
     out = AppendText(out, kSongs[song].name);
     *out = '\0';
-    if (g_state.scene == 1)
+    if (g_state.scene == kTunnel)
     {
         t.help[0] = "L-STICK STEER   R2 FIRE   R-STICK LOOK   OPTIONS MOTION";
         t.help[1] = g_rumble ? (g_motion ? "TOUCHPAD RUMBLE OFF   X MOOD   O SCENE   D-PAD MUSIC   MOTION ON"
@@ -1723,6 +1860,8 @@ void LogFps(float fps, float render_ms, bool dynamic)
     out = AppendNumber(out, render_ms, true);
     out = AppendText(out, dynamic ? " dyn" : " fixed");
     out = AppendText(out, g_state.antialias ? " aa4" : "");
+    out = AppendText(out, " scene ");
+    out = AppendText(out, kSceneNames[g_state.scene]);
     *out++ = '\n';
     (void)write(1, line, static_cast<std::size_t>(out - line));
 }
@@ -1737,9 +1876,10 @@ void LogFps(float fps, float render_ms, bool dynamic)
 int main(int argc, char **argv)
 {
     const bool smoke = argc == 2 && std::strcmp(argv[1], "--smoke-test") == 0;
-    if (argc > 1 && !smoke)
+    const bool observatory = argc == 2 && std::strcmp(argv[1], "--observatory") == 0;
+    if (argc > 1 && !smoke && !observatory)
     {
-        constexpr char message[] = "Usage: eboot [--smoke-test]\n";
+        constexpr char message[] = "Usage: eboot [--smoke-test | --observatory]\n";
         (void)write(2, message, sizeof(message) - 1);
         return 2;
     }
@@ -1797,6 +1937,8 @@ int main(int argc, char **argv)
 
     DetectPlatform();
     Controls controls;
+    if (observatory)
+        controls.scene = kObservatory;
     if (smoke)
         controls.dynamic = false;
     bool smoke_ok = true;
@@ -1810,7 +1952,7 @@ int main(int argc, char **argv)
         const float dt = Clamp(static_cast<float>(now - last) * 1e-6f, 0.0f, 0.1f);
         last = now;
         if (smoke)
-            controls.scene = frame < 90 ? 0 : 1;
+            controls.scene = static_cast<Scene>(frame / (180 / kSceneCount));
         if (dt > 0.0f)
             fps = fps == 0.0f ? 1.0f / dt : Mix(fps, 1.0f / dt, 0.1f);
         PadState state{};
@@ -1820,7 +1962,7 @@ int main(int argc, char **argv)
         controls.scene_time += dt;
         if (controls.scene_time > 30.0f)
         {
-            controls.scene ^= 1;
+            controls.scene = NextScene(controls.scene);
             controls.scene_time = 0.0f;
         }
         const int index = frame & 1;
@@ -1858,7 +2000,7 @@ int main(int argc, char **argv)
         smoke_ok = false;
     if (!smoke_ok)
         return 1;
-    constexpr char complete[] = "[showcase-smoke] complete frames=180 scenes=2\n";
+    constexpr char complete[] = "[showcase-smoke] complete frames=180 scenes=3\n";
     (void)write(1, complete, sizeof(complete) - 1);
     return 0;
 }

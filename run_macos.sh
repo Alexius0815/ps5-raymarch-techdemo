@@ -11,6 +11,7 @@
 # Output: run/play.log. Click the window before using the controller.
 
 set -o nounset
+set -o pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
@@ -46,7 +47,7 @@ main() {
   DYLD_LIBRARY_PATH="${VULKAN_LOADER_DIR}" \
     VK_DRIVER_FILES="${MOLTENVK_ICD}" \
     MVK_CONFIG_LOG_LEVEL=1 \
-    ./eboot > "${DEMO_LOG}" 2>&1
+    ./eboot "$@" 2>&1 | tee "${DEMO_LOG}"
   local -i exit_code=$?
   echo "Demo finished (status ${exit_code}). Log: run/play.log"
   exit "${exit_code}"
