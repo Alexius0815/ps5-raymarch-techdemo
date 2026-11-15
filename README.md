@@ -21,12 +21,13 @@ AudioOut and DualSense input.
 
 ## Download or build
 
-- **v1.4 source** on `main` includes Prism Observatory. Build from source
-  using the instructions below.
-- **v1.3 prebuilt ZIP** includes Metal Blobs and Neon Tunnel. Download it
-  from the [v1.3 release](https://github.com/Alexius0815/ps5-raymarch-techdemo/releases/tag/v1.3)
+- **v1.4 prebuilt ZIP** includes all three scenes. Download it from the
+  [v1.4 release](https://github.com/Alexius0815/ps5-raymarch-techdemo/releases/tag/v1.4)
   and use the [AnyPS5 online relinker](https://boykopovar.github.io/AnyPS5/)
-  to prepare the PS5 executable for your host.
+  to prepare the PS5 executable for your host. The release also provides
+  SHA-256 checksums.
+- **Build from source** using the instructions below. The release source is
+  tagged `v1.4`.
 
 The animated preview covers all three scenes. Metal Blobs and Neon Tunnel
 were captured on an Apple M4 Mac running AnyPS5 under Rosetta 2 with MoltenVK.
