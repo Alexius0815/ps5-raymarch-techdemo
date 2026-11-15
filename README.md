@@ -1,6 +1,6 @@
 # Raymarch Tech Demo
 
-![Raymarch Tech Demo running on macOS with AnyPS5](docs/demo.gif)
+![Prism Observatory showing a rotating crystal and three luminous rings](docs/prism-observatory.png)
 
 A small native PS5 homebrew demo, written from scratch as a free test title
 for [AnyPS5](https://github.com/boykopovar/AnyPS5) and its community macOS
@@ -19,14 +19,24 @@ AudioOut and DualSense input.
 - An overlay that reports where the demo runs (for example AnyPS5 on macOS
   under Rosetta 2, or real PS5 hardware), the build version and live stats.
 
-**Download:** the [latest release](https://github.com/Alexius0815/ps5-raymarch-techdemo/releases/latest) has a ZIP with the clean PS5 executable, ready for the
-[AnyPS5 online relinker](https://boykopovar.github.io/AnyPS5/).
+## Download or build
 
-| Neon tunnel | Metal blobs |
+- **v1.4 source** on `main` includes Prism Observatory. Build from source
+  using the instructions below.
+- **v1.3 prebuilt ZIP** includes Metal Blobs and Neon Tunnel. Download it
+  from the [v1.3 release](https://github.com/Alexius0815/ps5-raymarch-techdemo/releases/tag/v1.3)
+  and use the [AnyPS5 online relinker](https://boykopovar.github.io/AnyPS5/)
+  to prepare the PS5 executable for your host.
+
+The Prism Observatory image above is a render from the demo's CPU renderer.
+The tunnel and blobs images below were captured on an Apple M4 Mac running
+AnyPS5 under Rosetta 2 with MoltenVK.
+
+| Neon Tunnel | Metal Blobs |
 | --- | --- |
-| ![Neon tunnel scene](docs/tunnel.jpg) | ![Metal blobs scene](docs/blobs.jpg) |
+| ![Neon Tunnel scene](docs/tunnel.jpg) | ![Metal Blobs scene](docs/blobs.jpg) |
 
-Captured on an Apple M4 Mac with AnyPS5 (Rosetta 2, MoltenVK).
+[Watch the animated preview of Neon Tunnel and Metal Blobs](docs/demo.gif).
 
 ## Controls (DualSense)
 
@@ -67,20 +77,20 @@ This produces `build/eboot.elf`, a native PS5 executable.
 
 ## Running on macOS with AnyPS5
 
-Build AnyPS5 for x86_64 macOS (see AnyPS5 issue #1 for the community macOS
-port), then pass its build directory so the executable is also relinked
-for macOS:
+Build AnyPS5 for x86-64 macOS using the
+[community macOS port instructions](https://github.com/boykopovar/AnyPS5/issues/1).
+Pass the build directory to relink the executable for macOS:
 
 ```bash
 ANYPS5_BUILD=/path/to/AnyPS5/build PS5_PAYLOAD_SDK=... PS5_NATIVE_TOOL=... ./build.sh
 VULKAN_LOADER_DIR=/path/to/vulkan-loader \
 MOLTENVK_ICD=/path/to/MoltenVK_icd.json \
-./run_macos.sh
+./run_macos.sh --observatory
 ```
 
-Click the window before using the controller. Output streams to the terminal
-and is saved in `run/play.log`. Pass `--observatory` to `run_macos.sh` to start
-in the Prism Observatory.
+The command opens Prism Observatory. Running `./run_macos.sh` on its own
+starts in Metal Blobs. Click the window before using the controller.
+Output streams to the terminal and is saved in `run/play.log`.
 
 Tested on an Apple M4 Mac (Rosetta 2, MoltenVK) with the AnyPS5 macOS
 working stack. It has not been tested on a physical PS5.
@@ -89,8 +99,9 @@ working stack. It has not been tested on a physical PS5.
 
 `eboot --smoke-test` renders 180 frames through all three scenes without
 waiting for input, prints `[showcase-smoke] complete frames=180 scenes=3`
-and exits with status 0. Any other outcome means the run did not
-complete. It suits scripted pass/fail checks of a runtime build.
+and exits with status 0. The v1.4 smoke test passed on an Apple M4 Mac
+under Rosetta 2. It checks frame submission, vblank and normal exit.
+Audio, controller input and image correctness require separate checks.
 
 ## License
 
