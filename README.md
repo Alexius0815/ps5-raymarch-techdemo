@@ -1,6 +1,6 @@
 # Raymarch Tech Demo
 
-![Prism Observatory showing a rotating crystal and three luminous rings](docs/prism-observatory.png)
+![Animated preview of Metal Blobs, Neon Tunnel and Prism Observatory](docs/demo.gif)
 
 A small native PS5 homebrew demo, written from scratch as a free test title
 for [AnyPS5](https://github.com/boykopovar/AnyPS5) and its community macOS
@@ -28,15 +28,13 @@ AudioOut and DualSense input.
   and use the [AnyPS5 online relinker](https://boykopovar.github.io/AnyPS5/)
   to prepare the PS5 executable for your host.
 
-The Prism Observatory image above is a render from the demo's CPU renderer.
-The tunnel and blobs images below were captured on an Apple M4 Mac running
-AnyPS5 under Rosetta 2 with MoltenVK.
+The animated preview covers all three scenes. Metal Blobs and Neon Tunnel
+were captured on an Apple M4 Mac running AnyPS5 under Rosetta 2 with MoltenVK.
+The Prism Observatory sequence was rendered with the demo's CPU renderer.
 
 | Neon Tunnel | Metal Blobs |
 | --- | --- |
 | ![Neon Tunnel scene](docs/tunnel.jpg) | ![Metal Blobs scene](docs/blobs.jpg) |
-
-[Watch the animated preview of Neon Tunnel and Metal Blobs](docs/demo.gif).
 
 ## Controls (DualSense)
 
